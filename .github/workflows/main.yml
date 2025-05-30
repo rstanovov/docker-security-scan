@@ -1,0 +1,43 @@
+# Название workflow, которое будет отображаться на GitHub
+name: Docker Image Security Scan
+
+# Определяет, когда будет запускаться workflow
+on:
+  workflow_dispatch:  # Позволяет запускать workflow вручную через интерфейс GitHub
+  push:               # Также запускается автоматически при push в ветку main
+    branches: [ "main" ]
+
+# Определение задач (jobs), которые будут выполняться
+jobs:
+  scan:               # Название job - сканирование на уязвимости
+    runs-on: ubuntu-latest  # Запускается на последней версии Ubuntu
+    steps:
+      # Шаг 1: Выгрузка кода из репозитория
+      - name: Checkout code
+        uses: actions/checkout@v4  # Стандартное действие GitHub для получения кода
+
+      # Шаг 2: Запуск Trivy для сканирования Docker-образа на уязвимости
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master  # Использование официального action для Trivy
+        with:
+          image-ref: 'grpc/cxx'  # Указываем официальный образ из репозитория grpc для сканирования
+          format: 'table'        # Формат вывода результатов - таблица для лучшей читаемости
+          exit-code: '1'         # Критически важный параметр: завершить workflow с ошибкой при обнаружении критических уязвимостей
+          ignore-unfixed: true   # Игнорировать уязвимости, для которых нет исправлений
+          vuln-type: 'os,library'  # Типы уязвимостей для сканирования: ОС и библиотеки
+          severity: 'CRITICAL'    # Проверять только критические уязвимости (соответствует требованию задания)
+
+      # Шаг 3: Вывод результатов сканирования в лог workflow
+      - name: Display scan results
+        if: always()  # Выполнять этот шаг всегда, даже если предыдущий шаг завершился с ошибкой
+        run: |
+          echo "=== Scan Results ==="
+          trivy image grpc/cxx    # Запуск Trivy напрямую для отображения полных результатов
+
+      # Шаг 4: Сохранение результатов сканирования как артефакт
+      - name: Upload scan results
+        if: always()  # Выполнять этот шаг всегда, даже если предыдущие шаги завершились с ошибкой
+        uses: actions/upload-artifact@v4  # Стандартное действие GitHub для сохранения артефактов
+        with:
+          name: trivy-results     # Имя артефакта
+          path: trivy-results.txt # Путь к файлу результатов сканирования
